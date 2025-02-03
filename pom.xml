@@ -1,0 +1,130 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <groupId>org.example</groupId>
+    <artifactId>SearchEngine</artifactId>
+    <version>1.0-SNAPSHOT</version>
+
+    <properties>
+        <maven.compiler.source>17</maven.compiler.source>
+        <maven.compiler.target>17</maven.compiler.target>
+    </properties>
+
+    <parent>
+        <groupId>org.springframework.boot</groupId>
+        <artifactId>spring-boot-starter-parent</artifactId>
+        <version>2.7.1</version>
+        <relativePath/>
+    </parent>
+
+    <repositories>
+        <repository>
+            <id>local-repo</id>
+            <url>file:///C:/Users/Laila/Downloads/searchengine-main/libs</url>
+        </repository>
+    </repositories>
+
+    <dependencies>
+
+<!--        <dependency>-->
+<!--            <groupId>org.apache.lucene.morphology</groupId>-->
+<!--            <artifactId>dictionary-reader</artifactId>-->
+<!--            <version>1.5</version>-->
+<!--        </dependency>-->
+<!--        <dependency>-->
+<!--            <groupId>org.apache.lucene.morphology</groupId>-->
+<!--            <artifactId>english</artifactId>-->
+<!--            <version>1.5</version>-->
+<!--        </dependency>-->
+<!--        <dependency>-->
+<!--            <groupId>org.apache.lucene.morphology</groupId>-->
+<!--            <artifactId>russian</artifactId>-->
+<!--            <version>1.5</version>-->
+<!--        </dependency>-->
+
+
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-data-jpa</artifactId>
+        </dependency>
+
+        <dependency>
+            <groupId>jakarta.persistence</groupId>
+            <artifactId>jakarta.persistence-api</artifactId>
+            <version>3.1.0</version>
+        </dependency>
+
+        <dependency>
+            <groupId>org.hibernate</groupId>
+            <artifactId>hibernate-core</artifactId>
+            <version>5.6.10.Final</version>
+        </dependency>
+
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-web</artifactId>
+        </dependency>
+
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-thymeleaf</artifactId>
+        </dependency>
+
+        <dependency>
+            <groupId>org.projectlombok</groupId>
+            <artifactId>lombok</artifactId>
+        </dependency>
+
+        <!-- Подключение библиотеки для работы с леммами -->
+        <dependency>
+            <groupId>com.example</groupId>
+            <artifactId>dictionary-reader</artifactId>
+            <version>1.5</version>
+            <scope>system</scope>
+            <systemPath>C:/Users/Laila/Downloads/searchengine-main/libs/dictionary-reader-1.5.jar</systemPath>
+        </dependency>
+
+        <dependency>
+            <groupId>com.example</groupId>
+            <artifactId>dictionary-reader</artifactId>
+            <version>1.5</version>
+            <scope>system</scope>
+            <systemPath>C:/Users/Laila/Downloads/searchengine-main/libs/english-1.5.jar</systemPath>
+        </dependency>
+
+        <dependency>
+            <groupId>com.example</groupId>
+            <artifactId>dictionary-reader</artifactId>
+            <version>1.5</version>
+            <scope>system</scope>
+            <systemPath>C:/Users/Laila/Downloads/searchengine-main/libs/morph-1.5.jar</systemPath>
+        </dependency>
+
+        <dependency>
+            <groupId>com.example</groupId>
+            <artifactId>dictionary-reader</artifactId>
+            <version>1.5</version>
+            <scope>system</scope>
+            <systemPath>C:/Users/Laila/Downloads/searchengine-main/libs/morphology-1.5.jar</systemPath>
+        </dependency>
+
+        <dependency>
+            <groupId>com.example</groupId>
+            <artifactId>dictionary-reader</artifactId>
+            <version>1.5</version>
+            <scope>system</scope>
+            <systemPath>C:/Users/Laila/Downloads/searchengine-main/libs/russian-1.5.jar</systemPath>
+        </dependency>
+
+        <dependency>
+            <groupId>org.jsoup</groupId>
+            <artifactId>jsoup</artifactId>
+            <version>1.15.4</version>
+        </dependency>
+
+    </dependencies>
+
+</project>
