@@ -84,16 +84,16 @@ public class SiteIndexerService {
                     );
 
                     service.submit(siteParserThread);
-                    log.info("Started thread for site: {}", site.getUrl());
+                    log.info("Запущен поток для сайта: {}", site.getUrl());
                 }
             }
 
         } catch (Exception e) {
-            log.error("Error during indexing", e);
-            return ResponseEntity.status(500).body(new RequestResult("Indexing failed: " + e.getMessage()));
+            log.error("Ошибка при индексации", e);
+            return ResponseEntity.status(500).body(new RequestResult("Не удалось выполнить индексацию: " + e.getMessage()));
         }
 
-        return ResponseEntity.ok(new RequestResult("true"));
+        return ResponseEntity.ok(new RequestResult("Успешно выполнено"));
     }
 
     public ResponseEntity<?> indexPage(String path) {

@@ -19,6 +19,7 @@ import searchengine.repository.SiteEntityRepository;
 import java.io.IOException;
 import java.util.*;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 @Slf4j
 @Service
@@ -34,6 +35,29 @@ public class LemmaProcessingService {
 
     private final LuceneMorphology luceneMorphRus;
     private final LuceneMorphology luceneMorphEng;
+
+    public List<String> getLemmaRuList(List<String> words) {
+        return getLemmasFromWords(words, luceneMorphRus);
+    }
+
+    public List<String> getLemmaEnList(List<String> words) {
+        return getLemmasFromWords(words, luceneMorphEng);
+    }
+
+    public List<String> getWordsRu(List<String> words) {
+        return getWordsFromText(words, "[а-яА-Я]+", luceneMorphRus);
+    }
+
+    public List<String> getWordsEn(List<String> words) {
+        return getWordsFromText(words, "[a-zA-Z]+", luceneMorphEng);
+    }
+
+    private List<String> getWordsFromText(List<String> words, String regex, LuceneMorphology morphology) {
+        return words.stream()
+                .map(word -> word.replaceAll("[^" + regex + "]", ""))
+                .filter(word -> word.length() > 3)
+                .collect(Collectors.toList());
+    }
 
     public ResponseEntity<?> indexSinglePage(String path) {
         SiteDataService siteDataService = new SiteDataService();
@@ -98,7 +122,14 @@ public class LemmaProcessingService {
     private List<String> getLemmasFromWords(List<String> words, LuceneMorphology morphology) {
         return words.stream()
                 .filter(word -> word.length() > 3 && morphology.getMorphInfo(word).stream().noneMatch(PARTICLE_NAMES::contains))
-                .flatMap(word -> morphology.getNormalForms(word).stream())
+                .flatMap(word -> {
+                    try {
+                        return morphology.getNormalForms(word).stream();
+                    } catch (Exception e) {
+                        log.warn("Error processing word: {}", word, e);
+                        return Stream.empty();
+                    }
+                })
                 .collect(Collectors.toList());
     }
 

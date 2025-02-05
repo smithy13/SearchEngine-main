@@ -2,7 +2,6 @@ package searchengine.services;
 
 import lombok.Getter;
 import lombok.Setter;
-import org.hibernate.mapping.Index;
 import org.jsoup.Jsoup;
 import org.jsoup.nodes.Document;
 import org.slf4j.Logger;
@@ -70,7 +69,7 @@ public class SearchService {
 
         if (!queryLemmasSorted.isEmpty()) {
             List<IndexEntity> indicesByQuery = getIndicesByQuery(queryLemmasSorted, siteEntity.getId());
-            List<Page> pageList = pageRepository.findByIdIn(indicesByQuery.stream().map(Index::getPageId).toList());
+            List<Page> pageList = pageRepository.findByIdIn(indicesByQuery.stream().map(IndexEntity::getPageId).toList());
             Map<Long, Float> absRelevanceList = new HashMap<>();
 
             for (Page page : pageList) {
@@ -96,25 +95,26 @@ public class SearchService {
     }
 
     private List<LemmaDto> getSortedLemmas(Long siteId) {
-        return lemmaRepository.findBySiteId(siteId).stream()
+        return lemmaRepository.findAllBySiteEntityId(siteId).stream()
                 .filter(lemma -> queryLemmas.contains(lemma.getLemma().trim()))
-                .sorted()
+                .map(lemma -> new LemmaDto(lemma.getId(), lemma.getLemma(), lemma.getFrequency()))
+                .sorted(Comparator.comparing(LemmaDto::getLemma))
                 .toList();
     }
 
     private List<IndexEntity> getIndicesByQuery(List<LemmaDto> queryLemmas, long siteId) {
         List<Long> pagesIdList = queryLemmas.stream()
                 .flatMap(lemma -> indexRepository.findByLemmaId(lemma.getId()).stream())
-                .map(Index::getPageId)
+                .map(IndexEntity::getPageId)
                 .distinct()
                 .toList();
         return indexRepository.findByPageIdIn(pagesIdList);
     }
 
-    private float getAbsRelevance(List<Index> indexList, List<LemmaDto> queryWords) {
+    private float getAbsRelevance(List<IndexEntity> indexList, List<LemmaDto> queryWords) {
         return (float) indexList.stream()
                 .filter(index -> queryWords.stream().anyMatch(lemma -> lemma.getId().equals(index.getLemmaId())))
-                .mapToDouble(Index::getRank)
+                .mapToDouble(IndexEntity::getRank)
                 .sum();
     }
 
@@ -137,5 +137,13 @@ public class SearchService {
                 .map(String::toLowerCase)
                 .filter(w -> w.length() > 3)
                 .toList();
+    }
+
+    public List<String> getLemmaRuList(List<String> words) {
+        return new ArrayList<>();
+    }
+
+    public List<String> getLemmaEnList(List<String> words) {
+        return new ArrayList<>();
     }
 }

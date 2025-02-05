@@ -1,6 +1,6 @@
 package searchengine.controllers;
 
-import org.jboss.logging.Logger;
+import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -16,7 +16,7 @@ import java.io.IOException;
 @RequestMapping("/api")
 public class ApiController {
 
-    private static final Logger log = (Logger) LoggerFactory.getLogger(ApiController.class);
+    private static final Logger log = LoggerFactory.getLogger(ApiController.class);
     private static final int DEFAULT_OFFSET = 2;
     private static final int DEFAULT_LIMIT = 8;
 
@@ -34,24 +34,35 @@ public class ApiController {
 
     @GetMapping("/statistics")
     public ResponseEntity<StatisticsResponse> statistics() {
+        log.info("Request for statistics received");
         return ResponseEntity.ok(statisticsService.getStatistics());
     }
 
     @GetMapping("/startIndexing")
-    public ResponseEntity<?> startIndexing() {
-        return siteIndexerService.runIndexing();
+    public ResponseEntity<String> startIndexing() {
+        log.info("Indexing started");
+        try {
+            siteIndexerService.runIndexing();
+            return ResponseEntity.ok("Indexing started successfully.");
+        } catch (Exception e) {
+            log.error("Indexing failed", e);
+            return ResponseEntity.status(500).body("Indexing failed: " + e.getMessage());
+        }
     }
 
     @PostMapping("/indexPage")
-    public ResponseEntity<?> indexPage(@RequestParam String url) throws IOException {
-        return siteIndexerService.indexPage(url);
+    public ResponseEntity<String> indexPage(@RequestParam String url) throws IOException {
+        log.info("Indexing page: {}", url);
+        siteIndexerService.indexPage(url);
+        return ResponseEntity.ok("Page indexed successfully.");
     }
 
     @GetMapping("/search")
     public SearchResult search(@RequestParam String query,
-                               @RequestParam int offset,
-                               @RequestParam int limit,
+                               @RequestParam(defaultValue = "2") int offset,
+                               @RequestParam(defaultValue = "8") int limit,
                                @RequestParam(value = "site", required = false) String site) throws IOException {
-        return searchService.search(query, DEFAULT_OFFSET, DEFAULT_LIMIT, site);
+        log.info("Search request received for query: {}", query);
+        return searchService.search(query, offset, limit, site);
     }
 }

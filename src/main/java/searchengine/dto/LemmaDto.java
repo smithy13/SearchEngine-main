@@ -11,6 +11,12 @@ public class LemmaDto implements Comparable<LemmaDto> {
     private Integer frequency;
     private Long siteId;
 
+    public LemmaDto(Long id, String lemma, Integer frequency) {
+        this.id = id;
+        this.lemma = lemma;
+        this.frequency = frequency;
+    }
+
     @Override
     public int compareTo(LemmaDto o) {
         return Integer.compare(this.frequency, o.getFrequency());

@@ -1,6 +1,5 @@
 package searchengine.repository;
 
-import org.hibernate.mapping.Index;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
@@ -22,7 +21,7 @@ public interface IndexRepository extends JpaRepository<IndexEntity, Long> {
     @Query(value = "TRUNCATE TABLE indices", nativeQuery = true)
     void truncateIndices();
 
-    List<Index> findByPageId(Long pageId);
+    List<IndexEntity> findByPageId(Long pageId);
 
     List<IndexEntity> findByLemmaId(Long lemmaId);
 

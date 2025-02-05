@@ -25,7 +25,7 @@ public class SiteDataService {
     private static final String DB_PWD = "skillbox";
     private static final String URL_PATTERN_HEAD = "^[htpsw.:/]+[a-zA-Z\\.]+\\.[a-z]+";
     private static final String URL_PATTERN_TAIL = "\\/[_\\-\\/a-z0-9]+$";
-    private static final String URL_PATTERN = "^[htps:/]+[w]{0,3}[\\.]{0,1}";
+//    private static final String URL_PATTERN = "^[htps:/]+[w]{0,3}[\\.]{0,1}";
 
     public Connection getConnection() throws SQLException {
         String url = String.format("jdbc:mysql://localhost:3306/%s?user=%s&password=%s", DB_NAME, DB_USER, DB_PWD);
