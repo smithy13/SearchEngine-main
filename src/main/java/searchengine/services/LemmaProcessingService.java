@@ -18,6 +18,7 @@ import searchengine.repository.SiteEntityRepository;
 
 import java.io.IOException;
 import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -61,7 +62,7 @@ public class LemmaProcessingService {
 
     public ResponseEntity<?> indexSinglePage(String path) {
         SiteDataService siteDataService = new SiteDataService();
-        TreeMap<String, Integer> indexPageList = new TreeMap<>();
+        ConcurrentHashMap<String, Integer> indexPageList = new ConcurrentHashMap<>();
 
         String urlHead = path.replaceAll(siteDataService.getUrlPatternTail(), "");
         String urlTail = path.replaceAll(siteDataService.getUrlPatternHead(), "");
@@ -75,8 +76,13 @@ public class LemmaProcessingService {
         SiteEntity siteEntity = siteEntityOpt.get();
         Long siteId = siteEntity.getId();
         Optional<Page> pageOpt = pageRepository.findByPath(urlTail).stream().findFirst();
-        Long pageId = pageOpt.map(Page::getId).orElse(0L);
 
+        if (pageOpt.isEmpty()) {
+            log.warn("No page found for path: {}", urlTail);
+            return ResponseEntity.ok(new RequestResult(false));
+        }
+
+        Page page = pageOpt.get();
         List<Lemma> lemmaList = lemmaRepository.findAllBySiteEntityId(siteId);
 
         Document doc;
@@ -87,18 +93,18 @@ public class LemmaProcessingService {
             return siteDataService.throwException();
         }
 
-        indexRepository.deleteByPageId(pageId);
-        pageRepository.deleteById(pageId);
+        indexRepository.deleteByPage(page);
+        pageRepository.deleteById(page.getId());
 
         int statusCode = siteDataService.statusCode(path);
-        Page page = new Page(urlTail, statusCode, doc.html(), siteEntity);
-        pageRepository.save(page);
+        Page newPage = new Page(urlTail, statusCode, doc.html(), siteEntity);
+        pageRepository.save(newPage);
 
         try {
             log.info("Processing lemmas...");
-            String pageText = Jsoup.parse(page.getContent()).text();
+            String pageText = Jsoup.parse(newPage.getContent()).text();
             indexPageList.putAll(getLemmas(pageText));
-            updateLemmas(lemmaList, indexPageList, siteDataService);
+            updateLemmas(lemmaList, indexPageList, siteEntity);
         } catch (IOException e) {
             log.error("Error processing lemmas", e);
         }
@@ -106,10 +112,10 @@ public class LemmaProcessingService {
         return ResponseEntity.ok(new RequestResult(true));
     }
 
-    private TreeMap<String, Integer> getLemmas(String text) throws IOException {
+    private ConcurrentHashMap<String, Integer> getLemmas(String text) throws IOException {
         return getAllLemmas(text).stream()
                 .filter(word -> word.length() > 3)
-                .collect(Collectors.toMap(word -> word, word -> 1, Integer::sum, TreeMap::new));
+                .collect(Collectors.toMap(word -> word, word -> 1, Integer::sum, ConcurrentHashMap::new));
     }
 
     private List<String> getAllLemmas(String text) throws IOException {
@@ -140,7 +146,7 @@ public class LemmaProcessingService {
                 .collect(Collectors.toList());
     }
 
-    private void updateLemmas(List<Lemma> lemmaList, TreeMap<String, Integer> indexPageList, SiteDataService siteDataService) {
+    private void updateLemmas(List<Lemma> lemmaList, ConcurrentHashMap<String, Integer> indexPageList, SiteEntity siteEntity) {
         lemmaList.forEach(lemma -> {
             if (indexPageList.containsKey(lemma.getLemma())) {
                 lemma.setFrequency(lemma.getFrequency() + 1);
@@ -148,14 +154,12 @@ public class LemmaProcessingService {
             }
         });
 
-        String insertSQL = indexPageList.keySet().stream()
-                .filter(integer -> lemmaList.stream().noneMatch(l -> l.getLemma().equals(integer)))
-                .map(integer -> "(" + 1 + ", '" + integer + "')")
-                .collect(Collectors.joining(", "));
-
-        if (!insertSQL.isEmpty()) {
-            siteDataService.execSql("INSERT INTO lemmas (frequency, lemma) VALUES " + insertSQL);
-        }
+        indexPageList.keySet().stream()
+                .filter(lemmaText -> lemmaList.stream().noneMatch(l -> l.getLemma().equals(lemmaText)))
+                .forEach(lemmaText -> {
+                    Lemma newLemma = new Lemma(lemmaText, 1, siteEntity);
+                    lemmaRepository.save(newLemma);
+                });
     }
 
     public ResponseEntity<?> IndexOnePage(String path) {

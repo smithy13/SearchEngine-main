@@ -7,10 +7,13 @@ import searchengine.dto.PageDto;
 import java.io.IOException;
 import java.util.*;
 import java.util.concurrent.RecursiveTask;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.util.concurrent.ConcurrentSkipListSet;
 
 public class SitePagesRecursiveTask extends RecursiveTask<List<PageDto>> {
 
@@ -23,7 +26,7 @@ public class SitePagesRecursiveTask extends RecursiveTask<List<PageDto>> {
     private final SiteDataService siteDataService;
 
     public SitePagesRecursiveTask(Set<String> uniqueLinks, String basePath, String currentPath, Long siteID, SiteDataService siteDataService) {
-        this.uniqueLinks = uniqueLinks;
+        this.uniqueLinks = uniqueLinks != null ? uniqueLinks : new ConcurrentSkipListSet<>();
         this.basePath = basePath;
         this.currentPath = currentPath;
         this.siteID = siteID;
@@ -66,7 +69,7 @@ public class SitePagesRecursiveTask extends RecursiveTask<List<PageDto>> {
             }
         }
 
-        if (!SiteIndexerService.isInterrupted) {
+        if (!SiteIndexerService.isInterrupted.get()) {
             for (SitePagesRecursiveTask task : taskList) {
                 pagesList.addAll(task.join());
             }
@@ -92,7 +95,7 @@ public class SitePagesRecursiveTask extends RecursiveTask<List<PageDto>> {
             LOGGER.warn("Ошибка при обработке ссылки: {}", absoluteUrl);
         }
 
-        if (statusCode < 300 && !content.isEmpty() && !SiteIndexerService.isInterrupted) {
+        if (statusCode < 300 && !content.isEmpty() && !SiteIndexerService.isInterrupted.get()) {
             SitePagesRecursiveTask task = new SitePagesRecursiveTask(uniqueLinks, basePath, absoluteUrl, siteID, siteDataService);
             task.fork();
             taskList.add(task);

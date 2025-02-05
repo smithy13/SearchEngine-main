@@ -2,10 +2,10 @@ package searchengine.repository;
 
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
-import org.springframework.data.jpa.repository.Query;
 import org.springframework.stereotype.Repository;
 import org.springframework.transaction.annotation.Transactional;
 import searchengine.model.Page;
+import searchengine.model.SiteEntity;
 
 import java.util.List;
 
@@ -16,18 +16,13 @@ public interface PageRepository extends JpaRepository<Page, Long> {
 
     @Modifying
     @Transactional
-    @Query(value = "delete from pages", nativeQuery = true)
-    void deleteAllPages();
+    void deleteAll();
 
     @Modifying
     @Transactional
-    @Query(value = "TRUNCATE TABLE pages", nativeQuery = true)
-    void truncatePages();
+    void deleteAllInBatch();
 
     List<Page> findByPath(String path);
 
-    // List<Page> findBySiteEntity(SiteEntity siteEntity);
-
-    @Query(value = "select p.* from pages p where p.site_entity_id = :id", nativeQuery = true)
-    List<Page> findAllBySiteId(long id);
+    List<Page> findBySiteEntity(SiteEntity siteEntity);
 }

@@ -2,8 +2,6 @@ package searchengine.model;
 
 import lombok.Getter;
 import lombok.Setter;
-
-
 import jakarta.persistence.*;
 
 @Setter
@@ -12,8 +10,8 @@ import jakarta.persistence.*;
 @Table(name = "lemmas")
 public class Lemma {
     @Id
-    @Column(nullable = false)
     @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @Column(nullable = false)
     private Long id;
 
     @Column(columnDefinition = "VARCHAR(255)", nullable = false)
@@ -23,5 +21,12 @@ public class Lemma {
     private Integer frequency = 1;
 
     @ManyToOne
+    @JoinColumn(name = "site_id", nullable = false)
     private SiteEntity siteEntity;
+
+    public Lemma(String lemma, Integer frequency, SiteEntity siteEntity) {
+        this.lemma = lemma;
+        this.frequency = frequency;
+        this.siteEntity = siteEntity;
+    }
 }

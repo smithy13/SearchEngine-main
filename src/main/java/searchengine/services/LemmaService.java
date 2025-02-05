@@ -72,27 +72,26 @@ public class LemmaService implements CrudService<LemmaDto> {
             throw new IllegalStateException("Lemma has no associated SiteEntity");
         }
 
-        return new LemmaDto(
+        LemmaDto lemmaDto = new LemmaDto(
                 lemma.getId(),
                 lemma.getLemma(),
-                lemma.getFrequency(),
-                lemma.getSiteEntity().getId()
+                lemma.getFrequency()
         );
+
+        lemmaDto.setSiteId(lemma.getSiteEntity().getId());
+        return lemmaDto;
     }
 
     private Lemma mapToEntity(LemmaDto lemmaDto) {
-        Lemma lemma = new Lemma();
-        lemma.setId(lemmaDto.getId());
-
         SiteEntity siteEntity = siteRepository.findById(lemmaDto.getSiteId())
                 .orElseThrow(() -> {
                     log.warn("SiteEntity not found with id: {}", lemmaDto.getSiteId());
                     return new IllegalArgumentException("SiteEntity not found with id: " + lemmaDto.getSiteId());
                 });
 
-        lemma.setSiteEntity(siteEntity);
-        lemma.setFrequency(lemmaDto.getFrequency());
-        lemma.setLemma(lemmaDto.getLemma());
+        Lemma lemma = new Lemma(lemmaDto.getLemma(), lemmaDto.getFrequency(), siteEntity);
+        lemma.setId(lemmaDto.getId());
+        log.info("Mapped LemmaDto to Lemma: {}", lemma);
         return lemma;
     }
 }

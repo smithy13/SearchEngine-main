@@ -13,20 +13,20 @@ public class IndexEntity {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @Column(name = "page_id", nullable = false)
-    private Long pageId;
+    @ManyToOne
+    @JoinColumn(name = "page_id", nullable = false)
+    private Page page;
 
-    @Column(name = "lemma_id", nullable = false)
-    private Long lemmaId;
+    @ManyToOne
+    @JoinColumn(name = "lemma_id", nullable = false)
+    private Lemma lemma;
 
     @Column(name = "rank", nullable = false)
     private Float rank;
 
-    public IndexEntity() {}
-
-    public IndexEntity(Long pageId, Long lemmaId, Float rank) {
-        this.pageId = pageId;
-        this.lemmaId = lemmaId;
+    public IndexEntity(Page page, Lemma lemma, Float rank) {
+        this.page = page;
+        this.lemma = lemma;
         this.rank = rank;
     }
 }

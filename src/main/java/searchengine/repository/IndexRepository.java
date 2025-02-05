@@ -6,6 +6,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.stereotype.Repository;
 import org.springframework.transaction.annotation.Transactional;
 import searchengine.model.IndexEntity;
+import searchengine.model.Page;
 
 import java.util.List;
 
@@ -14,16 +15,16 @@ public interface IndexRepository extends JpaRepository<IndexEntity, Long> {
 
     @Transactional
     @Modifying
-    void deleteByPageId(Long pageId);
+    void deleteByPage(Page page);
 
     @Transactional
     @Modifying
     @Query(value = "TRUNCATE TABLE indices", nativeQuery = true)
     void truncateIndices();
 
-    List<IndexEntity> findByPageId(Long pageId);
+    List<IndexEntity> findByPage(Page page);
 
-    List<IndexEntity> findByLemmaId(Long lemmaId);
+    List<IndexEntity> findByLemmaId(Long lemma);
 
-    List<IndexEntity> findByPageIdIn(List<Long> ids);
+    List<IndexEntity> findByPageIn(List<Page> pages);
 }

@@ -9,8 +9,8 @@ import lombok.*;
 @Entity
 @Table(name = "pages",
         indexes = {
-@Index(name = "pathIdx", columnList = "path")
-})
+                @Index(name = "pathIdx", columnList = "path")
+        })
 public class Page implements Comparable<Page> {
     @Id
     @Column(nullable = false)

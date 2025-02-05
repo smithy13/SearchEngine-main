@@ -3,12 +3,10 @@ package searchengine.services;
 import org.jsoup.Jsoup;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Autowired;
 import searchengine.dto.IndexPage;
-import searchengine.dto.PageDto;
+import searchengine.model.SiteEntity;
 import searchengine.model.Lemma;
 import searchengine.model.Page;
-import searchengine.model.SiteEntity;
 import searchengine.model.Status;
 import searchengine.repository.LemmaRepository;
 import searchengine.repository.PageRepository;
@@ -21,8 +19,8 @@ import java.util.concurrent.*;
 public class SiteParserThread implements Runnable {
 
     private static final Logger log = LoggerFactory.getLogger(SiteParserThread.class);
-    @Autowired
-    private LemmaProcessingService lemmaProcessingService;
+
+    private final LemmaProcessingService lemmaProcessingService;
 
     private final String pathWithoutWWW;
     private final String pagePath;
@@ -34,21 +32,20 @@ public class SiteParserThread implements Runnable {
     public SiteParserThread(String pathWithoutWWW, String pagePath,
                             PageRepository pageRepository,
                             SiteEntityRepository siteEntityRepository,
-                            LemmaRepository lemmaRepository) {
+                            LemmaRepository lemmaRepository,
+                            LemmaProcessingService lemmaProcessingService) {
         this.pathWithoutWWW = pathWithoutWWW;
         this.pagePath = pagePath;
         this.pageRepository = pageRepository;
         this.siteEntityRepository = siteEntityRepository;
         this.lemmaRepository = lemmaRepository;
+        this.lemmaProcessingService = lemmaProcessingService;
     }
 
     @Override
     public void run() {
         long startMillis = System.currentTimeMillis();
         log.info("Начало парсинга сайта: {}", pathWithoutWWW);
-
-        LinkChecker linkChecker = new LinkChecker();
-        SiteDataService siteDataService = new SiteDataService();
 
         SiteEntity site = SiteIndexerService.sitesEntityMap.get(pathWithoutWWW);
         long siteId = site.getId();
@@ -59,31 +56,7 @@ public class SiteParserThread implements Runnable {
 
         ForkJoinPool forkJoinPool = new ForkJoinPool();
         try {
-            TreeSet<PageDto> pagesList = new TreeSet<>(forkJoinPool.invoke(
-                    new SitePagesRecursiveTask(linkChecker.getUniqueLinks(), pathWithoutWWW, pagePath, siteId, siteDataService)
-            ));
-
-            log.info("==== Вставка в таблицу `pages` завершена. Найдено страниц: {}", pagesList.size());
-
-            for (PageDto page : pagesList) {
-                insertQuery.append(insertQuery.isEmpty() ? "" : ",")
-                        .append("('")
-                        .append(page.getCode()).append("','")
-                        .append(page.getContent()).append("','")
-                        .append(page.getPath()).append("',")
-                        .append(siteId)
-                        .append(")");
-
-                if (insertQuery.length() >= 1_000_000) {
-                    siteDataService.execSql("INSERT INTO pages (code, content, path, site_entity_id) VALUES " + insertQuery);
-                    insertQuery.setLength(0);
-                }
-            }
-            if (!insertQuery.isEmpty()) {
-                siteDataService.execSql("INSERT INTO pages (code, content, path, site_entity_id) VALUES " + insertQuery);
-            }
-
-            List<Page> pages = pageRepository.findAllBySiteId(siteId);
+            List<Page> pages = pageRepository.findBySiteEntity(site);
             List<Page> pagesNoError = pages.stream().filter(p -> p.getCode() < 300).toList();
 
             ExecutorService service = Executors.newFixedThreadPool(2);
@@ -106,41 +79,13 @@ public class SiteParserThread implements Runnable {
                     }
                 }
 
-                insertQuery.setLength(0);
-
-                Map<String, Integer> lemmaFrequency = new HashMap<>();
-                for (List<String> lemmas : pagesLemmasMap.values()) {
-                    for (String lemma : new HashSet<>(lemmas)) {
-                        lemmaFrequency.merge(lemma, 1, Integer::sum);
-                    }
-                }
-
-                for (Map.Entry<String, Integer> entry : lemmaFrequency.entrySet()) {
-                    insertQuery.append(insertQuery.isEmpty() ? "" : ",")
-                            .append("('")
-                            .append(entry.getKey()).append("',")
-                            .append(entry.getValue()).append(",")
-                            .append(siteId)
-                            .append(")");
-
-                    if (insertQuery.length() >= 1_000_000) {
-                        siteDataService.execSql("INSERT INTO lemmas (lemma, frequency, site_entity_id) VALUES " + insertQuery);
-                        insertQuery.setLength(0);
-                    }
-                }
-
-                if (!insertQuery.isEmpty()) {
-                    siteDataService.execSql("INSERT INTO lemmas (lemma, frequency, site_entity_id) VALUES " + insertQuery);
-                }
-                log.info("==== Вставка в таблицу `lemmas` завершена");
-
-                List<IndexPage> indexPageList = new ArrayList<>();
                 List<Lemma> lemmasDb = lemmaRepository.findAllBySiteEntityId(siteId);
                 Map<String, Long> lemmaIdMap = new HashMap<>();
                 for (Lemma lemma : lemmasDb) {
                     lemmaIdMap.put(lemma.getLemma(), lemma.getId());
                 }
 
+                List<IndexPage> indexPageList = new ArrayList<>();
                 for (Page page : pagesNoError) {
                     List<String> lemmasOnPage = pagesLemmasMap.getOrDefault(page.getPath(), Collections.emptyList());
                     Set<String> uniqueLemmas = new HashSet<>();
@@ -153,25 +98,6 @@ public class SiteParserThread implements Runnable {
                             indexPageList.add(new IndexPage(page.getId(), lemmaId, rank));
                         }
                     }
-                }
-
-                insertQuery.setLength(0);
-                for (IndexPage item : indexPageList) {
-                    insertQuery.append(insertQuery.isEmpty() ? "" : ",")
-                            .append("('")
-                            .append(item.getLemmaId()).append("',")
-                            .append(item.getPageId()).append(",")
-                            .append(item.getRank())
-                            .append(")");
-
-                    if (insertQuery.length() >= 1_000_000) {
-                        siteDataService.execSql("INSERT INTO indices (lemma_id, page_id, rank) VALUES " + insertQuery);
-                        insertQuery.setLength(0);
-                    }
-                }
-
-                if (!insertQuery.isEmpty()) {
-                    siteDataService.execSql("INSERT INTO indices (lemma_id, page_id, rank) VALUES " + insertQuery);
                 }
             } finally {
                 service.shutdown();

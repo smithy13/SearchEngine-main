@@ -1,8 +1,7 @@
 package searchengine.services;
 
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
+import org.springframework.http.ResponseEntity;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import searchengine.config.*;
@@ -15,45 +14,52 @@ import java.util.*;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 @Service
 public class SiteIndexerService {
 
-    @Autowired
-    private SiteList siteList;
-
-    @Autowired
-    private ParameterList parameterList;
-
-    @Autowired
-    private SiteEntityRepository siteEntityRepository;
-
-    @Autowired
-    private PageRepository pageRepository;
-
-    @Autowired
-    private LemmaRepository lemmaRepository;
-
-    @Autowired
-    private IndexRepository indexRepository;
-
-    @Autowired
-    private LemmaProcessingService lemmaProcessingService;
+    private final SiteList siteList;
+    private final ParameterList parameterList;
+    private final SiteEntityRepository siteEntityRepository;
+    private final PageRepository pageRepository;
+    private final LemmaRepository lemmaRepository;
+    private final IndexRepository indexRepository;
+    private final LemmaProcessingService lemmaProcessingService;
 
     private static final String URL_PATTERN = "^[htps:/]+[w]{0,3}[\\.]{0,1}";
-    static final TreeMap<String, SiteEntity> sitesEntityMap = new TreeMap<>();
-    static final TreeMap<String, String> appParam = new TreeMap<>();
-    static volatile boolean isInterrupted = false;
+
+    static final ConcurrentHashMap<String, SiteEntity> sitesEntityMap = new ConcurrentHashMap<>();
+    static final ConcurrentHashMap<String, String> appParam = new ConcurrentHashMap<>();
+
+    static final AtomicBoolean isInterrupted = new AtomicBoolean(false);
     private static final Logger log = LoggerFactory.getLogger(SiteIndexerService.class);
+
+    public SiteIndexerService(SiteList siteList,
+                              ParameterList parameterList,
+                              SiteEntityRepository siteEntityRepository,
+                              PageRepository pageRepository,
+                              LemmaRepository lemmaRepository,
+                              IndexRepository indexRepository,
+                              LemmaProcessingService lemmaProcessingService) {
+        this.siteList = siteList;
+        this.parameterList = parameterList;
+        this.siteEntityRepository = siteEntityRepository;
+        this.pageRepository = pageRepository;
+        this.lemmaRepository = lemmaRepository;
+        this.indexRepository = indexRepository;
+        this.lemmaProcessingService = lemmaProcessingService;
+    }
 
     public ResponseEntity<?> runIndexing() {
         try {
             createAppParam();
 
-            indexRepository.truncateIndices();
-            lemmaRepository.truncateLemmas();
-            pageRepository.truncatePages();
-            siteEntityRepository.truncateSites();
+            indexRepository.deleteAllInBatch();
+            lemmaRepository.deleteAllInBatch();
+            pageRepository.deleteAllInBatch();
+            siteEntityRepository.deleteAllInBatch();
 
             for (Site site : siteList.getSites()) {
                 SiteEntity siteEnt = new SiteEntity();
@@ -80,7 +86,7 @@ public class SiteIndexerService {
                     String pathWithoutWWW = site.getUrl().replaceAll(URL_PATTERN, "");
 
                     SiteParserThread siteParserThread = new SiteParserThread(
-                            pathWithoutWWW, site.getUrl(), pageRepository, siteEntityRepository, lemmaRepository
+                            pathWithoutWWW, site.getUrl(), pageRepository, siteEntityRepository, lemmaRepository, lemmaProcessingService
                     );
 
                     service.submit(siteParserThread);
@@ -94,6 +100,22 @@ public class SiteIndexerService {
         }
 
         return ResponseEntity.ok(new RequestResult("Успешно выполнено"));
+    }
+
+    public ResponseEntity<?> stopIndexing() {
+        try {
+            isInterrupted.set(true);
+
+            ThreadPoolExecutor service = (ThreadPoolExecutor) Executors.newFixedThreadPool(2);
+            service.shutdownNow();
+
+            log.info("Индексация была остановлена.");
+
+            return ResponseEntity.ok(new RequestResult("Индексация успешно остановлена."));
+        } catch (Exception e) {
+            log.error("Ошибка при остановке индексации", e);
+            return ResponseEntity.status(500).body(new RequestResult("Не удалось остановить индексацию: " + e.getMessage()));
+        }
     }
 
     public ResponseEntity<?> indexPage(String path) {

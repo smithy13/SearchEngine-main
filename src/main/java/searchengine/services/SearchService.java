@@ -6,7 +6,6 @@ import org.jsoup.Jsoup;
 import org.jsoup.nodes.Document;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import searchengine.dto.LemmaDto;
 import searchengine.dto.search.Data;
@@ -23,23 +22,27 @@ import java.util.stream.Collectors;
 public class SearchService {
     private static final Logger log = LoggerFactory.getLogger(SearchService.class);
 
-    @Autowired
-    private LemmaProcessingService lemmaProcessingService;
-    @Autowired
-    private SiteEntityRepository siteEntityRepository;
-    @Autowired
-    private LemmaRepository lemmaRepository;
-    @Autowired
-    private IndexRepository indexRepository;
-    @Autowired
-    private PageRepository pageRepository;
+    private final LemmaProcessingService lemmaProcessingService;
+    private final SiteEntityRepository siteEntityRepository;
+    private final LemmaRepository lemmaRepository;
+    private final IndexRepository indexRepository;
+    private final PageRepository pageRepository;
 
-    private List<String> queryLemmas = new ArrayList<>();
-    private List<String> wordsQuery = new ArrayList<>();
+    public SearchService(LemmaProcessingService lemmaProcessingService,
+                         SiteEntityRepository siteEntityRepository,
+                         LemmaRepository lemmaRepository,
+                         IndexRepository indexRepository,
+                         PageRepository pageRepository) {
+        this.lemmaProcessingService = lemmaProcessingService;
+        this.siteEntityRepository = siteEntityRepository;
+        this.lemmaRepository = lemmaRepository;
+        this.indexRepository = indexRepository;
+        this.pageRepository = pageRepository;
+    }
 
     public SearchResult search(String query, int offset, int limit, String site) {
-        queryLemmas.clear();
-        wordsQuery.clear();
+        List<String> queryLemmas = new ArrayList<>();
+        List<String> wordsQuery = new ArrayList<>();
 
         List<Data> dataList = new ArrayList<>();
         wordsQuery.addAll(parseWords(query, "ru"));
@@ -49,33 +52,33 @@ public class SearchService {
         queryLemmas.addAll(lemmaProcessingService.getLemmaEnList(wordsQuery));
 
         if (site == null) {
-            siteEntityRepository.findAll().stream()
-                    .filter(s -> s.getStatus().equals(Status.INDEXED))
-                    .forEach(s -> dataList.addAll(searchOnes(offset, limit, s.getUrl())));
+            siteEntityRepository.findByStatus(Status.INDEXED).forEach(s ->
+                    dataList.addAll(searchOnes(offset, limit, s.getUrl(), queryLemmas, wordsQuery))
+            );
         } else {
-            dataList.addAll(searchOnes(offset, limit, site));
+            dataList.addAll(searchOnes(offset, limit, site, queryLemmas, wordsQuery));
         }
 
         return new SearchResult(!dataList.isEmpty(), dataList.size(), dataList);
     }
 
-    private List<Data> searchOnes(int offset, int limit, String site) {
+    private List<Data> searchOnes(int offset, int limit, String site, List<String> queryLemmas, List<String> wordsQuery) {
         Optional<SiteEntity> siteEntityOpt = siteEntityRepository.findByUrl(site).stream().findFirst();
         if (siteEntityOpt.isEmpty()) return Collections.emptyList();
 
         SiteEntity siteEntity = siteEntityOpt.get();
         List<Data> dataList = new ArrayList<>();
-        List<LemmaDto> queryLemmasSorted = getSortedLemmas(siteEntity.getId());
+        List<LemmaDto> queryLemmasSorted = getSortedLemmas(siteEntity.getId(), queryLemmas);
 
         if (!queryLemmasSorted.isEmpty()) {
             List<IndexEntity> indicesByQuery = getIndicesByQuery(queryLemmasSorted, siteEntity.getId());
-            List<Page> pageList = pageRepository.findByIdIn(indicesByQuery.stream().map(IndexEntity::getPageId).toList());
+            List<Page> pageList = pageRepository.findByIdIn(indicesByQuery.stream().map(IndexEntity::getPage).map(Page::getId).toList());
             Map<Long, Float> absRelevanceList = new HashMap<>();
 
             for (Page page : pageList) {
-                absRelevanceList.put(page.getId(), getAbsRelevance(indexRepository.findByPageId(page.getId()), queryLemmasSorted));
+                absRelevanceList.put(page.getId(), getAbsRelevance(indexRepository.findByPage(page), queryLemmasSorted));
                 Document doc = Jsoup.parse(page.getContent());
-                String snippet = getSnippet(doc);
+                String snippet = getSnippet(doc, wordsQuery);
                 if (!snippet.isEmpty()) {
                     dataList.add(new Data(page.getPath(), siteEntity.getUrl(), siteEntity.getName(), doc.title(), snippet));
                 }
@@ -90,11 +93,13 @@ public class SearchService {
                 }
             }
         }
-        dataList.sort(Comparator.comparing(Data::getRelevance).reversed());
-        return dataList;
+
+        int startIndex = Math.min(offset, dataList.size());
+        int endIndex = Math.min(startIndex + limit, dataList.size());
+        return dataList.subList(startIndex, endIndex);
     }
 
-    private List<LemmaDto> getSortedLemmas(Long siteId) {
+    private List<LemmaDto> getSortedLemmas(Long siteId, List<String> queryLemmas) {
         return lemmaRepository.findAllBySiteEntityId(siteId).stream()
                 .filter(lemma -> queryLemmas.contains(lemma.getLemma().trim()))
                 .map(lemma -> new LemmaDto(lemma.getId(), lemma.getLemma(), lemma.getFrequency()))
@@ -103,24 +108,24 @@ public class SearchService {
     }
 
     private List<IndexEntity> getIndicesByQuery(List<LemmaDto> queryLemmas, long siteId) {
-        List<Long> pagesIdList = queryLemmas.stream()
+        List<Page> pagesList = queryLemmas.stream()
                 .flatMap(lemma -> indexRepository.findByLemmaId(lemma.getId()).stream())
-                .map(IndexEntity::getPageId)
+                .map(IndexEntity::getPage)
                 .distinct()
                 .toList();
-        return indexRepository.findByPageIdIn(pagesIdList);
+        return indexRepository.findByPageIn(pagesList);
     }
 
     private float getAbsRelevance(List<IndexEntity> indexList, List<LemmaDto> queryWords) {
         return (float) indexList.stream()
-                .filter(index -> queryWords.stream().anyMatch(lemma -> lemma.getId().equals(index.getLemmaId())))
+                .filter(index -> queryWords.stream().anyMatch(lemma -> lemma.getId().equals(index.getLemma().getId())))
                 .mapToDouble(IndexEntity::getRank)
                 .sum();
     }
 
-    private String getSnippet(Document doc) {
+    private String getSnippet(Document doc, List<String> wordsQuery) {
         List<String> pageWords = Arrays.stream(doc.body().text().split("\\s+")).toList();
-        int startNdx = getStartIndex(pageWords);
+        int startNdx = getStartIndex(pageWords, wordsQuery);
         if (startNdx == pageWords.size()) return "";
         int stopNdx = Math.min(startNdx + 30, pageWords.size());
         return pageWords.subList(startNdx, stopNdx).stream()
@@ -128,7 +133,7 @@ public class SearchService {
                 .collect(Collectors.joining(" "));
     }
 
-    private int getStartIndex(List<String> pageWords) {
+    private int getStartIndex(List<String> pageWords, List<String> wordsQuery) {
         return wordsQuery.stream().map(pageWords::indexOf).filter(i -> i >= 0).min(Integer::compareTo).orElse(pageWords.size());
     }
 
@@ -137,13 +142,5 @@ public class SearchService {
                 .map(String::toLowerCase)
                 .filter(w -> w.length() > 3)
                 .toList();
-    }
-
-    public List<String> getLemmaRuList(List<String> words) {
-        return new ArrayList<>();
-    }
-
-    public List<String> getLemmaEnList(List<String> words) {
-        return new ArrayList<>();
     }
 }
